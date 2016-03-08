@@ -1,67 +1,58 @@
-FROM ubuntu:trusty
+FROM alpine:3.3
 MAINTAINER Matej Kramny <matejkramny@gmail.com>
 
-# Inspired from https://github.com/hopsoft/docker-graphite-statsd
+# Borrowed from https://github.com/CastawayLabs/graphite-statsd
+# Initial work from https://github.com/hopsoft/docker-graphite-statsd
 
 # Install dependencies
-RUN apt-get -y update && \
-  apt-get -y --force-yes install \
+RUN apk add --update \
   nginx \
-  python-flup \
-  expect \
-  git \
-  memcached \
-  sqlite3 \
-  libcairo2 \
-  libcairo2-dev \
-  python-cairo \
-  pkg-config \
-  wget \
-  python-dev \
   supervisor \
   openssl \
-  nodejs && \
-  apt-get clean && \
-  rm -rf /var/lib/apt/lists/*
+  expect \
+  nodejs \
+  tzdata \
+  py-cairo \
+  py-pip && \
+ rm -rf /var/cache/apk/*
+
+RUN apk add --update gcc python-dev musl-dev && \
+  pip install twisted==11.1.0 && \
+  apk del gcc python-dev musl-dev && \
+  rm -rf /var/cache/apk/*
 
 # Configure log dirs (might be useless)
 RUN mkdir -p /var/log/nginx
 RUN mkdir -p /var/log/carbon
 RUN mkdir -p /var/log/graphite
 
-ADD conf/distribute_setup.py /opt/distribute_setup.py
-RUN python /opt/distribute_setup.py
-RUN easy_install pip
+# python-memcached==1.53 \
+RUN pip install \
+  django==1.3 \
+  django-tagging==0.3.1 \
+  whisper==0.9.12 \
+  flup==1.0.2
 
-RUN pip install django==1.3
-RUN pip install python-memcached==1.53
-RUN pip install django-tagging==0.3.1
-RUN pip install whisper==0.9.12
-RUN pip install twisted==11.1.0
-RUN pip install txAMQP==0.6.2
-
-# get source code
-RUN git clone -b 0.9.12 https://github.com/graphite-project/graphite-web.git /usr/local/src/graphite-web
-RUN git clone -b 0.9.12 https://github.com/graphite-project/whisper.git /usr/local/src/whisper
-RUN git clone -b 0.9.12 https://github.com/graphite-project/carbon.git /usr/local/src/carbon
-RUN git clone -b v0.7.2 https://github.com/etsy/statsd.git /opt/statsd
-
-# Install Graphite
-WORKDIR /usr/local/src/graphite-web
-RUN python ./setup.py install
-
-# Install Whisper
-WORKDIR /usr/local/src/whisper
-RUN python ./setup.py install
-
-# Install Carbon
-WORKDIR /usr/local/src/carbon
-RUN python ./setup.py install
+# Install Graphite/Whisper/Carbon
+RUN apk add --update git && \
+  git clone -b 0.9.12 https://github.com/graphite-project/graphite-web.git /usr/local/src/graphite-web && \
+  cd /usr/local/src/graphite-web && \
+  python ./setup.py install && \
+  git clone -b 0.9.12 https://github.com/graphite-project/whisper.git /usr/local/src/whisper && \
+  cd /usr/local/src/whisper && \
+  python ./setup.py install && \
+  git clone -b 0.9.12 https://github.com/graphite-project/carbon.git /usr/local/src/carbon && \
+  cd /usr/local/src/carbon && \
+  python ./setup.py install && \
+  git clone -b v0.7.2 https://github.com/etsy/statsd.git /opt/statsd && \
+  apk del git && \
+  rm -rf /var/cache/apk/*
 
 # Configure nginx site
 RUN rm -rf /etc/nginx/sites-enabled/*
 
-ADD conf/nginx.conf /etc/nginx/sites-enabled/graphite
+ADD conf/nginx.conf /etc/nginx/nginx.conf
+ADD conf/graphite-site.conf /etc/nginx/sites-enabled/graphite
 ADD conf/graphite_syncdb.sh /opt/graphite_syncdb
 ADD conf/supervisord.conf /etc/supervisord.conf
 
@@ -83,9 +74,9 @@ RUN chmod 775 /opt/graphite_syncdb
 RUN /opt/graphite_syncdb
 
 # Expose common ports
-EXPOSE 80
+#EXPOSE 80
 EXPOSE 443
-EXPOSE 2003
+#EXPOSE 2003
 EXPOSE 8125/udp
 
 # Enable users of this container to mount their volumes (optional)
