@@ -3,11 +3,9 @@ MAINTAINER Matej Kramny <matejkramny@gmail.com>
 
 # Inspired from https://github.com/hopsoft/docker-graphite-statsd
 
-RUN echo deb http://archive.ubuntu.com/ubuntu $(lsb_release -cs) main universe > /etc/apt/sources.list.d/universe.list
-RUN apt-get -y update
-
 # Install dependencies
-RUN apt-get -y --force-yes install vim \
+RUN apt-get -y update && \
+  apt-get -y --force-yes install \
   nginx \
   python-flup \
   expect \
@@ -22,7 +20,9 @@ RUN apt-get -y --force-yes install vim \
   python-dev \
   supervisor \
   openssl \
-  nodejs
+  nodejs && \
+  apt-get clean && \
+  rm -rf /var/lib/apt/lists/*
 
 # Configure log dirs (might be useless)
 RUN mkdir -p /var/log/nginx
@@ -84,6 +84,7 @@ RUN /opt/graphite_syncdb
 
 # Expose common ports
 EXPOSE 80
+EXPOSE 443
 EXPOSE 2003
 EXPOSE 8125/udp
 
